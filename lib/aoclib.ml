@@ -21,10 +21,6 @@ module Parsing = struct
 
   let integer =
     take_while1 (function '0' .. '9' -> true | _ -> false) >>| int_of_string
-
-  let letter =
-    take_while1 (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false)
-
 end
 
 module MakeDay

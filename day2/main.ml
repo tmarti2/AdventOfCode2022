@@ -13,18 +13,20 @@ include Types
 
 module Parsing = struct
   open Angstrom
-  open Parsing
 
-  let shape_of_string = function
-    | "A" | "X" -> R
-    | "B" | "Y" -> P
-    | "C" | "Z" -> S
-    | _ -> failwith "wrong shape"
+  let convert = function
+    | 'A' | 'X' -> R
+    | 'B' | 'Y' -> P
+    | 'C' | 'Z' -> S
+    | _ -> failwith "not a shape"
 
-  let shape = letter >>| shape_of_string
+  let is_shape = function
+    | 'A' .. 'C' | 'X' .. 'Z' -> true
+    | _ -> false
 
-  let input =
-    sep_by end_of_line (both shape (char ' ' *> shape))
+  let shape = satisfy is_shape >>| convert
+
+  let input = sep_by end_of_line (both (shape <* char ' ') shape)
 end
 
 module Solving = struct
