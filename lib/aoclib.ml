@@ -19,9 +19,6 @@ end
 module Parsing = struct
   open Angstrom
 
-  let space =
-    (char ' ' *> return ()) <?> "space"
-
   let integer =
     take_while1 (function '0' .. '9' -> true | _ -> false) >>| int_of_string
 

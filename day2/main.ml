@@ -24,7 +24,7 @@ module Parsing = struct
   let shape = letter >>| shape_of_string
 
   let input =
-    sep_by end_of_line (both shape (skip_many space *> shape))
+    sep_by end_of_line (both shape (char ' ' *> shape))
 end
 
 module Solving = struct
