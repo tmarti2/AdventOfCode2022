@@ -1,4 +1,4 @@
 (library
  (name aoclib)
- (libraries stdio unix angstrom)
+ (libraries stdio unix angstrom cmdliner)
  )

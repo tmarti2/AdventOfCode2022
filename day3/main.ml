@@ -53,4 +53,4 @@ end
 
 module Today = MakeDay(Types)(Parsing)(Solving)
 
-let () = Today.run_all
+let () = Today.run_all ()
