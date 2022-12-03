@@ -51,3 +51,6 @@ struct
 
   let run_all = go "example.txt"; go "input.txt"
 end
+
+(* Compose *)
+let (<<) f g x = f (g x)

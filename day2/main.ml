@@ -6,7 +6,7 @@ module Types = struct
   type input = (shape*shape) list
   [@@deriving show]
 
-  type output = int option
+  type output = int
   [@@deriving show]
 end
 include Types
@@ -48,10 +48,10 @@ module Solving = struct
     | (p1,S) -> (p1,win p1)
 
   let part1 (input : input) : output =
-    List.sum ~f:score (module Int) input |> Option.some
+    List.sum ~f:score (module Int) input
 
   let part2 (input : input) : output =
-    List.sum ~f:(Fn.compose score choose) (module Int) input |> Option.some
+    List.sum ~f:(score << choose) (module Int) input
 end
 
 module Today = MakeDay(Types)(Parsing)(Solving)
