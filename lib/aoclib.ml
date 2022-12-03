@@ -21,6 +21,9 @@ module Parsing = struct
 
   let integer =
     take_while1 (function '0' .. '9' -> true | _ -> false) >>| int_of_string
+
+  let word =
+    take_while1 (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false)
 end
 
 module MakeDay
@@ -38,10 +41,13 @@ struct
       | Error msg -> failwith msg
     in
     let input = Stdio.In_channel.read_all file |> do_parse in
+    let t1 = Unix.gettimeofday () in
     let o1 = S.part1 input in
+    let t2 = Unix.gettimeofday () in
     let o2 = S.part2 input in
-    Format.printf "Part 1: %a@.%!" T.pp_output o1;
-    Format.printf "Part 2: %a@.%!" T.pp_output o2
+    let t3 = Unix.gettimeofday () in
+    Format.printf "Part 1: %a in %fs@.%!" T.pp_output o1 (t2-.t1);
+    Format.printf "Part 2: %a in %fs@.%!" T.pp_output o2 (t3-.t2)
 
   let run_all = go "example.txt"; go "input.txt"
 end
