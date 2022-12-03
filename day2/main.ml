@@ -26,7 +26,7 @@ module Parsing = struct
 
   let shape = satisfy is_shape >>| convert
 
-  let input = sep_by end_of_line (both (shape <* char ' ') shape)
+  let input = many (both (shape <* char ' ') (shape <* end_of_line))
 end
 
 module Solving = struct

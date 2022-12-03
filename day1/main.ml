@@ -14,7 +14,7 @@ module Parsing = struct
   open Parsing
 
   let input =
-    sep_by end_of_line (sep_by end_of_line integer)
+    many (sep_by end_of_line integer <* end_of_line)
 end
 
 module Solving = struct

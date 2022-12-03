@@ -13,7 +13,7 @@ module Parsing = struct
   open Angstrom
   open Parsing
 
-  let input = sep_by end_of_line word
+  let input = many (word <* end_of_line)
 end
 
 module Solving = struct
