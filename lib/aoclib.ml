@@ -23,8 +23,9 @@ module Parsing = struct
   let integer =
     take_while1 (function '0' .. '9' -> true | _ -> false) >>| int_of_string
 
-  let word =
-    take_while1 (function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false)
+  let letter = Base.Char.is_alpha
+
+  let word = take_while1 letter
 end
 
 module MakeDay
@@ -62,18 +63,19 @@ struct
       Format.printf "@.%!";
       Format.printf "File  : %s@.%!" file;
       let input = Stdio.In_channel.read_all file |> do_parse in
+      if debug then (
+        Format.printf "Parsed:@[%a@]@.%!" T.pp_input input
+      );
       let t1 = Unix.gettimeofday () in
       let o1 = S.part1 input in
       let t2 = Unix.gettimeofday () in
       let o2 = S.part2 input in
       let t3 = Unix.gettimeofday () in
-      if debug then (
-        Format.printf "Parsed:@[%a@]@.%!" T.pp_input input
-      );
       Format.printf "Part 1: %a in %fs@.%!" T.pp_output o1 (t2-.t1);
       Format.printf "Part 2: %a in %fs@.%!" T.pp_output o2 (t3-.t2)
     in
-    aux ~debug "example.txt"; aux "input.txt"
+    aux ~debug "example.txt";
+    if not debug then aux "input.txt"
 
   let debug_arg =
     Arg.info [ "d"; "debug" ] ~doc:"Enable debug mode"
