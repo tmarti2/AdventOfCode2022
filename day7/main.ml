@@ -2,49 +2,41 @@ open Aoclib
 
 module Types = struct
   type tree =
-  | File of string * int
-  | Dir of string * int * tree list
+  | File of string*int
+  | Dir of string*int*tree list
   [@@deriving show]
-  type input = tree [@@deriving show]
+
+  type action = Root | Up | Down of string | Ls of tree list
+  [@@deriving show]
+
+  type input = action list [@@deriving show]
 
   type output = int [@@deriving show]
 end
 include Types
-let tree = ref None
+
 module Parsing = struct
   open Angstrom
   open Parsing
-  open Base
-
-
-  let curr = Stack.create ()
-  let move = function
-    | `Up -> ignore(Stack.pop_exn curr)
-    | `Down d -> Stack.push curr d
-  let path () = Stack.to_list curr |> List.rev |> String.concat ~sep:"/"
 
   let name = take_while (fun c -> not @@ Char.equal c '\n')
 
-  let up = string ".." >>| (fun _ -> move `Up)
-  let down = name >>| (fun d -> move @@ `Down d)
-  let cd = string "$ cd " *> (up <|> down) <* end_of_line
+  let up = (string "$ cd .."  <* end_of_line) *> return Up
+  let down = (string "$ cd " *> name  <* end_of_line) >>| fun d -> (Down d)
+  let root =  (string "$ cd /" <* end_of_line) *> return Root
+  let cd = root <|> up <|> down
 
-  let add content =
-    let dir = path () in
-    let rec add_aux t content =
-      match t with
-      | File _ -> t
-      | Dir (name,s,[]) when String.equal name dir -> Dir (name,s,content)
-      | Dir (name,_,_) when String.equal name dir -> t
-      | Dir (name,s,l) ->
-        let nl =
-          List.map ~f:(fun t -> add_aux t content) l
-        in
-        Dir (name,s,nl)
-    in
-    match !tree with
-    | None -> tree := Some (Dir (dir,0,content))
-    | Some t -> tree := Some (add_aux t content)
+  let dir = string "dir " *> name >>| fun d -> Dir(d,0,[])
+  let file = lift2 (fun s n -> File(n,s)) integer (char ' ' *> name)
+  let result =
+    many ((dir <|> file) <* end_of_line) >>| (fun res -> Ls res)
+  let ls = (string "$ ls" <* end_of_line) *> result
+
+  let input = many (cd <|> ls)
+end
+
+module Solving = struct
+  open Base
 
   let dir_size = function
     | File (_,s) -> s
@@ -58,38 +50,61 @@ module Parsing = struct
       let s = List.sum (module Int) ~f:dir_size updated_content in
       Dir (name,s,updated_content)
 
-  let dir = (string "dir " *> name <* end_of_line) >>| (fun n -> Dir (path()^"/"^n,0,[]))
-  let file = lift2 (fun size name -> File(name,size)) integer (char ' ' *> name <* end_of_line)
-  let ls = string "$ ls" *> end_of_line *> many (dir <|> file) >>| add
-  let input = many (cd <|> ls) >>| (fun _ -> Option.value_exn !tree |> compute_sizes)
-end
-
-module Solving = struct
-
   let find f size tree =
     let rec aux acc t =
       match t with
       | File _ -> acc
       | Dir (_,s,content) ->
         let nacc = if f s size then s::acc else acc in
-        List.fold_left (fun acc t ->
+        List.fold ~init:nacc ~f:(fun acc t ->
             aux acc t
-          ) nacc content
+          ) content
     in
     aux [] tree
 
+  let absolute_path p t = match t with
+    | File (n,s) -> File (n,s)
+    | Dir (d,s,c) ->
+      if String.equal p "/" then Dir(p^d, s, c) else Dir(p^"/"^d, s, c)
+
+  let construct actions =
+    let pos = Stack.create () in
+    let path () = Stack.to_list pos |> List.rev |> String.concat ~sep:"/" in
+    let pname () = "/" ^ path () in
+    let rec add l t =
+      let curr = pname () in
+      match t with
+      | File _ -> t
+      | Dir (d, s, []) when String.equal d curr -> Dir(d, s, l)
+      | Dir (d, _, _) when String.equal d curr -> t
+      | Dir (d, s, c) ->
+        Dir (d, s, List.map ~f:(add l) c)
+    in
+    let rec aux todo t =
+      match todo with
+      | [] -> t
+      | Root :: tl -> Stack.clear pos; aux tl t
+      | Up :: tl -> ignore(Stack.pop_exn pos); aux tl t
+      | Down d :: tl -> Stack.push pos d; aux tl t
+      | Ls ls :: tl ->
+        let ls = List.map ~f:(absolute_path (pname ())) ls in
+        let t' = add ls t in
+        aux tl t'
+    in aux actions (Dir("/",0,[]))
+
+
   let part1 (input : input) : output =
-    tree := None;
-    find (<=) 100000 input
+    let build = construct input |> compute_sizes in
+    find (<=) 100000 build
     |> Base.(List.sum (module Int) ~f:Fn.id)
 
   let part2 (input : input) : output =
+    let build = construct input |> compute_sizes in
     let max, min = 70000000, 30000000 in
-    let to_delete = min - (max - Parsing.dir_size input) in
-    find (>=) to_delete input
-    |> List.sort compare
-    |> List.hd
-
+    let to_delete = min - (max - dir_size build) in
+    find (>=) to_delete build
+    |> List.sort ~compare
+    |> List.hd_exn
 
 end
 
