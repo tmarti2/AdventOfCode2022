@@ -25,6 +25,8 @@ module Parsing = struct
 
   let letter = Base.Char.is_alpha
 
+  let space = char ' '
+
   let word = take_while1 letter
 end
 

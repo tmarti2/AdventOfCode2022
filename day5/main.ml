@@ -27,7 +27,6 @@ module Parsing = struct
   open Parsing
   open Base
 
-  let space = char ' '
   let empty = string "   " >>| (fun _ -> None)
   let content = satisfy letter >>| Char.to_string >>| Option.some
   let crate = char '[' *> content <* char ']'
@@ -69,15 +68,16 @@ module Solving = struct
     let removed = if rev then List.rev removed else removed in
     List.iter removed ~f:(Stack.push stacks.(dst))
 
-  let copie_stacks stacks =
+  let copy_stacks stacks =
     Array.init (Array.length stacks) ~f:(fun i -> Stack.copy stacks.(i))
 
   let get_top stacks =
     Array.fold stacks ~init:"" ~f:(fun acc s -> acc ^ (Stack.top_exn s))
 
   let aux_part ~rev (stacks,actions) =
-    List.iter ~f:(copie_stacks stacks |> do_action rev) actions;
-    get_top stacks
+    let copy = copy_stacks stacks in
+    List.iter ~f:(do_action rev copy) actions;
+    get_top copy
 
   let part1 (input : input) : output =
     aux_part ~rev:true input
