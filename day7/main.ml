@@ -1,13 +1,14 @@
 open Aoclib
 
 module Types = struct
-  type tree =
-  | File of string*int
-  | Dir of string*int*tree list
-  [@@deriving show]
+  type kind = Dir of int option | File of int
+  [@@deriving show {with_path = false}]
 
-  type action = Root | Up | Down of string | Ls of tree list
-  [@@deriving show]
+  type label = {name : string; kind : kind}
+  [@@deriving show {with_path = false}]
+
+  type action = GoRoot | GoUp | GoDown of string | Ls of label list
+  [@@deriving show {with_path = false}]
 
   type input = action list [@@deriving show]
 
@@ -21,15 +22,15 @@ module Parsing = struct
 
   let name = take_while (fun c -> not @@ Char.equal c '\n')
 
-  let up = (string "$ cd .."  <* end_of_line) *> return Up
-  let down = (string "$ cd " *> name  <* end_of_line) >>| fun d -> (Down d)
-  let root =  (string "$ cd /" <* end_of_line) *> return Root
+  let up = (string "$ cd .."  <* end_of_line) *> return GoUp
+  let down = (string "$ cd " *> name  <* end_of_line) >>| fun d -> (GoDown d)
+  let root =  (string "$ cd /" <* end_of_line) *> return GoRoot
   let cd = root <|> up <|> down
 
-  let dir = string "dir " *> name >>| fun d -> Dir(d,0,[])
-  let file = lift2 (fun s n -> File(n,s)) integer (char ' ' *> name)
-  let result =
-    many ((dir <|> file) <* end_of_line) >>| (fun res -> Ls res)
+  let dir = string "dir " *> return (Dir None)
+  let file = integer <* space >>| fun s -> File s
+  let lab = lift2 (fun kind name -> {name;kind}) (dir <|> file) name
+  let result = many (lab <* end_of_line) >>| (fun res -> Ls res)
   let ls = (string "$ ls" <* end_of_line) *> result
 
   let input = many (cd <|> ls)
@@ -38,73 +39,85 @@ end
 module Solving = struct
   open Base
 
-  let dir_size = function
-    | File (_,s) -> s
-    | Dir (_,s,_) -> s
+  type tree = {label: label; children : tree list}
+  [@@deriving show {with_path = false}]
 
-  let rec compute_sizes tree =
-    match tree with
-    | File _ -> tree
-    | Dir (name,_,content) ->
-      let updated_content = List.map ~f:compute_sizes content in
-      let s = List.sum (module Int) ~f:dir_size updated_content in
-      Dir (name,s,updated_content)
+  type path = Root | Parent of path * tree
 
-  let find f size tree =
-    let rec aux acc t =
-      match t with
-      | File _ -> acc
-      | Dir (_,s,content) ->
-        let nacc = if f s size then s::acc else acc in
-        List.fold ~init:nacc ~f:(fun acc t ->
-            aux acc t
-          ) content
+  let go_up (t, p) =
+    match p with
+    | Root -> None
+    | Parent (path, parent) ->
+      Some ({parent with children = t :: parent.children}, path)
+
+  let rec go_root (t, p) =
+    match go_up (t, p) with
+    | None -> (t, p)
+    | Some (t', p') ->
+      go_root (t', p')
+
+  let explore (t, p) d =
+    let child, others =
+      List.partition_tf t.children ~f:(fun c -> String.equal c.label.name d)
     in
-    aux [] tree
+    List.hd_exn child,
+    Parent (p, {t with children = others})
 
-  let absolute_path p t = match t with
-    | File (n,s) -> File (n,s)
-    | Dir (d,s,c) ->
-      if String.equal p "/" then Dir(p^d, s, c) else Dir(p^"/"^d, s, c)
+  let add_info (t, p) ls =
+    let make_node label = {label; children = []} in
+    let childs = List.map ~f:make_node ls in
+    ({t with children = childs}, p)
 
-  let construct actions =
-    let pos = Stack.create () in
-    let path () = Stack.to_list pos |> List.rev |> String.concat ~sep:"/" in
-    let pname () = "/" ^ path () in
-    let rec add l t =
-      let curr = pname () in
-      match t with
-      | File _ -> t
-      | Dir (d, s, []) when String.equal d curr -> Dir(d, s, l)
-      | Dir (d, _, _) when String.equal d curr -> t
-      | Dir (d, s, c) ->
-        Dir (d, s, List.map ~f:(add l) c)
+  let do_action zip = function
+    | GoRoot -> go_root zip
+    | GoUp -> go_up zip |> Option.value_exn
+    | GoDown d -> explore zip d
+    | Ls info -> add_info zip info
+
+  let build_tree actions =
+    let init = ({label={name = "/"; kind = Dir None}; children=[]}, Root) in
+    List.fold ~init ~f:do_action actions
+    |> go_root |> fst
+
+  let size t =
+    match t.label.kind with
+    | File s -> s
+    | Dir (Some s) -> s
+    | Dir None -> assert false
+
+  let rec compute_size t =
+    match t.label.kind with
+    | File _  | Dir (Some _) -> t
+    | Dir None ->
+      let children = List.map ~f:compute_size t.children in
+      let size = List.sum (module Int) ~f:size children in
+      {label = {t.label with kind = Dir (Some size)}; children}
+
+  let rec tree_fold ~f ~init t =
+    let init = f init t in
+    List.fold t.children ~init ~f:(fun init c -> tree_fold ~init ~f c)
+
+  let find_match op size t =
+    let f acc t =
+      match t.label.kind with
+      | File _  | Dir None -> acc
+      | Dir (Some s) -> if op s size then s::acc else acc
     in
-    let rec aux todo t =
-      match todo with
-      | [] -> t
-      | Root :: tl -> Stack.clear pos; aux tl t
-      | Up :: tl -> ignore(Stack.pop_exn pos); aux tl t
-      | Down d :: tl -> Stack.push pos d; aux tl t
-      | Ls ls :: tl ->
-        let ls = List.map ~f:(absolute_path (pname ())) ls in
-        let t' = add ls t in
-        aux tl t'
-    in aux actions (Dir("/",0,[]))
-
+    tree_fold ~f ~init:[] t
 
   let part1 (input : input) : output =
-    let build = construct input |> compute_sizes in
-    find (<=) 100000 build
-    |> Base.(List.sum (module Int) ~f:Fn.id)
+    build_tree input
+    |> compute_size
+    |> find_match (<=) 100000
+    |> List.sum (module Int) ~f:Fn.id
 
   let part2 (input : input) : output =
-    let build = construct input |> compute_sizes in
     let max, min = 70000000, 30000000 in
-    let to_delete = min - (max - dir_size build) in
-    find (>=) to_delete build
-    |> List.sort ~compare
-    |> List.hd_exn
+    let t = build_tree input |> compute_size in
+    let to_delete = min - (max - size t) in
+    find_match (>=) to_delete t
+    |> List.min_elt ~compare
+    |> Option.value_exn
 
 end
 
