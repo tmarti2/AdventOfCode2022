@@ -20,13 +20,11 @@ end
 module Parsing = struct
   open Angstrom
 
-  let integer =
-    take_while1 (function '0' .. '9' -> true | _ -> false) >>| int_of_string
-
+  let number =  Base.Char.is_digit
   let letter = Base.Char.is_alpha
-
   let space = char ' '
 
+  let integer = take_while1 number >>| int_of_string
   let word = take_while1 letter
 end
 
