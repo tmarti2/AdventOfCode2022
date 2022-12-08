@@ -20,19 +20,17 @@ module Parsing = struct
   open Parsing
   open Base
 
-  let to_visit l =
-    List.map l ~f:(fun c -> Char.to_int c - Char.to_int '0')
+  let to_int l =
+    List.map l ~f:(fun c -> Char.(to_int c - to_int '0'))
 
-  let row = take_while number >>| (Array.of_list << to_visit << String.to_list)
+  let row = take_while number >>| (Array.of_list << to_int << String.to_list)
   let input = many (row <* end_of_line) >>| Array.of_list
 end
 
 module Solving = struct
   open Base
 
-  let dims map =
-    Array.length map.(0),
-    Array.length map
+  let dims map = Array.length map.(0), Array.length map
 
   let is_inside x y dx dy =
     x >= 0 && x < dx && y >= 0 && y < dy
@@ -47,6 +45,16 @@ module Solving = struct
     in
     aux x y
 
+  let is_visible map x y =
+    List.exists ~f:(visible_dir map x y) [(1,0);(0,1);(-1,0);(0,-1)]
+
+  let count_visibility map =
+    Array.foldi ~init:0 ~f:(fun y acc row ->
+        acc + Array.counti ~f:(fun x _ ->
+            is_visible map x y
+          ) row
+      ) map
+
   let view_distance map x y (dx,dy) =
     let dimx, dimy = dims map in
     let v = map.(y).(x) in
@@ -57,19 +65,9 @@ module Solving = struct
     in
     aux x y 0
 
-  let is_visible map x y =
-    List.exists ~f:(visible_dir map x y) [(1,0);(0,1);(-1,0);(0,-1)]
-
   let scenic_score map x y =
     List.map ~f:(view_distance map x y) [(1,0);(0,1);(-1,0);(0,-1)]
     |> List.reduce_exn ~f:( * )
-
-  let count_visibility map =
-    Array.foldi ~init:0 ~f:(fun y acc row ->
-        acc + Array.counti ~f:(fun x _ ->
-            is_visible map x y
-          ) row
-      ) map
 
   let best_scenic_score map =
     Array.foldi ~init:0 ~f:(fun y init row ->
