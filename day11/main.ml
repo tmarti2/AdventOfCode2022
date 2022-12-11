@@ -79,14 +79,15 @@ module Solving = struct
     |> Fn.flip List.take 2
     |> List.reduce_exn ~f:( * )
 
+  let n = 2 * 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23
+
   let part1 (input : input) : output =
     let monkeys = Array.of_list input in
-    rounds monkeys 20 ~f:(fun a -> a / 3);
+    rounds monkeys 20 ~f:(fun a -> (a / 3) % n);
     business monkeys
 
   let part2 (input : input) : output =
     let monkeys = Array.of_list input in
-    let n = 2 * 3 * 5 * 7 * 11 * 13 * 17 * 19 * 23 in
     rounds monkeys 10000 ~f:(fun a -> a % n);
     business monkeys
 
