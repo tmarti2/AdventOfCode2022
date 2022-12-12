@@ -3,10 +3,10 @@ open Aoclib
 module Types = struct
 
   type monkey = {
-    worries : int list;
+    mutable worries : int list;
     inspect : int -> int;
     throw : int -> int;
-    activity: int;
+    mutable activity: int;
   } [@@deriving show {with_path = false}]
 
   type input = monkey list [@@deriving show]
@@ -19,55 +19,50 @@ module Parsing = struct
   open Angstrom
   open Parsing
 
-  let id = string "Monkey " *> integer <* char ':' <* end_of_line
-  let worries = sep_by (string ", ") integer
-  let start = string "  Starting items: " *> worries <* end_of_line
+  let start =
+    let id = string "Monkey " *> integer *> char ':' *> end_of_line in
+    let worries = sep_by1 (string ", ") integer in
+    id *> string "  Starting items: " *> worries <* end_of_line
 
-  let old = string "old" *> return `Old
-  let int = integer >>| fun i -> `Int i
-  let add = string " + " *> return (+)
-  let mul = string " * " *> return ( * )
-  let op =
-    lift3 (fun a op b ->
-        match a, b with
-        | `Old, `Old -> fun a -> op a a
-        | `Old, `Int i -> fun a -> op a i
-        | `Int i, `Old -> fun a -> op i a
-        | `Int i, `Int i' -> fun _ -> op i i'
-      ) (int <|> old) (add <|> mul) (int <|> old)
-  let inspect = string "  Operation: new = " *> op <* end_of_line
+  let inspect =
+    let op =
+      let v = (string "old" *> return `Old) <|> (integer >>| fun i -> `Int i) in
+      let op = string " + " *> return (+) <|> string " * " *> return ( * ) in
+      let f a x = match a with `Old -> x | `Int n -> n in
+      lift3 (fun a op b x -> op (f a x) (f b x)) v op v
+    in string "  Operation: new = " *> op <* end_of_line
 
-  let test = string "  Test: divisible by " *> integer <* end_of_line
-  let restrue = string "    If true: throw to monkey " *> integer <* end_of_line
-  let resfalse = string "    If false: throw to monkey " *> integer <* end_of_line
   let throw =
+    let get_i s = string s *> integer <* end_of_line in
+    let test = get_i "  Test: divisible by " in
+    let restrue = get_i "    If true: throw to monkey " in
+    let resfalse = get_i "    If false: throw to monkey " in
     lift3 (fun test yes no ->
       fun v -> if v mod test = 0 then yes else no
       ) test restrue resfalse
 
-  let monkey = id *>
-  lift3 (fun worries inspect throw ->
-          {worries; inspect; throw; activity=0}
-    ) start inspect throw
-  let input = sep_by end_of_line monkey
+  let monkey =
+    lift3 (fun worries inspect throw ->
+        {worries; inspect; throw; activity=0}
+      ) start inspect throw
+  let input = sep_by1 end_of_line monkey
 
 end
 
 module Solving = struct
   open Base
 
-  let do_monkey ~f monkeys id monkey =
-    let activity =
-      List.fold ~init:monkey.activity monkey.worries ~f:(fun acc item ->
-          let new_worry = f (monkey.inspect item) in
-          let next = monkey.throw new_worry in
-          monkeys.(next) <- {monkeys.(next) with worries = monkeys.(next).worries @ [new_worry]};
-          acc + 1
-        )
-    in monkeys.(id) <- {monkey with activity; worries = []}
+  let do_monkey ~f monkeys m =
+    List.iter m.worries ~f:(fun item ->
+        let new_worry = f (m.inspect item) in
+        let next = m.throw new_worry in
+        monkeys.(next).worries <- new_worry :: monkeys.(next).worries;
+        m.activity <- m.activity +1
+      );
+    m.worries <- []
 
   let round ~f monkeys =
-    Array.iteri monkeys ~f:(do_monkey ~f monkeys)
+    Array.iter monkeys ~f:(do_monkey ~f monkeys)
 
   let rec rounds ~f monkeys n =
     round ~f monkeys;
