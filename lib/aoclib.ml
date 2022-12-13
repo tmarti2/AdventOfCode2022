@@ -26,6 +26,9 @@ module Parsing = struct
 
   let integer = take_while1 number >>| int_of_string
   let word = take_while1 letter
+
+  (** [enclosed l p r] creates a parser [char l *> p <* char r]  *)
+  let enclosed l p r = char l *> p <* char r
 end
 
 module MakeDay
