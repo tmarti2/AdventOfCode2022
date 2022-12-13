@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (preprocess (pps ppx_show))
+ (libraries aoclib angstrom ppx_show.runtime ocamlgraph unix)
+)
