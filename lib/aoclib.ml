@@ -25,6 +25,11 @@ module Parsing = struct
   let space = char ' '
 
   let integer = take_while1 number >>| int_of_string
+  let neg_integer =
+    lift2
+      (fun sign n -> if sign = '-' then -n else n)
+      (Angstrom.option '+' (char '-'))
+      integer
   let word = take_while1 letter
 
   (** [enclosed l p r] creates a parser [char l *> p <* char r]  *)

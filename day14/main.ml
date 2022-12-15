@@ -94,8 +94,7 @@ module Solving = struct
   let part2 (input : input) : output =
     let _, maxy = dims input in
     let dimx, dimy = 1000, maxy + 3 in
-    init_map ~bot:(dimy-1) dimx dimy input |>
-    fall_until (dimx, dimy)
+    init_map ~bot:(dimy-1) dimx dimy input |> fall_until (dimx, dimy)
 
 end
 
