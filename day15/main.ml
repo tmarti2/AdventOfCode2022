@@ -29,70 +29,66 @@ module Solving = struct
   let dist a b =
     abs (a.x - b.x) + abs (a.y - b.y)
 
-  let find_dims sensors =
-    List.fold sensors ~init:(0,0) ~f:(fun (minx,maxx) (s,b) ->
-        min (min minx s.x) b.x,
-        max (max maxx s.x) b.x
+  type interval = {l:int;h:int;b:coord}
+  let intervals sensors y =
+    List.filter_map sensors ~f:(fun (s,b,d) ->
+        let d = d - abs (s.y - y) in
+        if d < 0 then None
+        else Some {l=s.x - d; h=s.x+d;b}
       )
 
-  let count_row sensors y (min,max) acc =
-    let rec aux x acc =
-      if x > max then acc
-      else
-        let p = {x;y} in
-        let s = List.find sensors ~f:(fun (s,_,d) ->
-          dist p s <= d
-          ) in
-        match s with
-        | None -> aux (x+1) acc
-        | Some (s,b,d) ->
-          let next = s.x + (d - abs(s.y - y)) + 1 in
-          let b = if b.y = y && b.x >= x then -1 else 0 in
-          aux next (acc + (next - x) + b)
+  let count_row y sensors =
+    let count_b b x = if b.y = y && b.x >= x then -1 else 0 in
+    let intervals = intervals sensors y |> List.sort ~compare:Poly.compare in
+    let diff l h = h - l + 1 in
+    match intervals with
+    | [] -> 0
+    | {l;h;_} :: tl ->
+      snd @@
+      List.fold tl ~init:(h+1, diff l h - 1) ~f:(fun (x,acc) {l; h; b} ->
+          let b = count_b b x in
+          if x > h then (x, acc)
+          else if x < l then (h + 1, acc + (diff l h) + b)
+          else (h + 1, acc + (h - x) + b + 1)
+        )
 
+  let find_row sensors y max =
+    let rec aux x =
+      if x > max then None
+      else begin
+        let nx =
+          List.fold sensors ~init:x ~f:(fun x (s,_,d) ->
+              if dist {x;y} s <= d then
+                s.x + (d - abs(s.y - y)) + 1
+              else
+                x
+            )
+        in
+        if nx = x then Some {x;y} else aux nx
+      end
     in
-    aux min acc
+    aux 0
 
-let find_row sensors y max =
-  let rec aux x =
-    if x > max then None
-    else begin
-      let nx =
-        List.fold sensors ~init:x ~f:(fun x (s,_,d) ->
-            if dist {x;y} s <= d then
-              s.x + (d - abs(s.y - y)) + 1
-            else
-              x
-          )
-      in
-      if nx = x then Some {x;y} else aux nx
-    end
-  in
-  aux 0
-
-let find_beacon sensors max =
-  let rec aux y =
-    if y > max then None
-    else
-      match find_row sensors y max with
-      | None -> aux (y+1)
-      | Some p -> Some p
-  in
-  aux 0
+  let find_beacon max sensors =
+    let rec aux y =
+      if y > max then None
+      else
+        match find_row sensors y max with
+        | None -> aux (y+1)
+        | Some p -> Some p
+    in
+    aux 0
 
   let compute_dist sensors =
     List.map sensors ~f:(fun (s,b) -> (s,b, dist s b))
 
   let part1 (input : input) : output =
-    let y = if List.length input > 14 then 2000000 else 10 in
-    let (min,max) = find_dims input in
-    let sensors = compute_dist input in
-    count_row sensors y (min*2,max*2) 0
+    let y = if List.length input = 14 then 10 else 2000000 in
+    compute_dist input |> count_row y
 
   let part2 (input : input) : output =
-    let max = if List.length input > 14 then 4000000 else 20 in
-    let sensors = compute_dist input in
-    match find_beacon sensors max with
+    let max = if List.length input = 14 then 20 else 4000000 in
+    match compute_dist input |> find_beacon max with
     | None -> assert false
     | Some p -> p.x * 4000000 + p.y
 

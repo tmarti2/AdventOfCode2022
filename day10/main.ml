@@ -47,7 +47,7 @@ module Solving = struct
       if (cycles + 1) % 40 = 20
       then res + (x * (cycles + 1))
       else if (cycles + 2) % 40 = 20
-        then res + (x * (cycles + 2))
+      then res + (x * (cycles + 2))
       else res
 
   let part1 (input : input) : output =

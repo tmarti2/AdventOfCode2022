@@ -8,8 +8,8 @@ module Types = struct
   type input = int array array
   let pp_input fmt s =
     Array.iter (fun e ->
-      pp_array Format.pp_print_int fmt e;
-      Format.pp_print_newline fmt ()) s
+        pp_array Format.pp_print_int fmt e;
+        Format.pp_print_newline fmt ()) s
 
   type output = int [@@deriving show]
 end

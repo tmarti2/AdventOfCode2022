@@ -38,7 +38,7 @@ module Parsing = struct
     let restrue = get_i "    If true: throw to monkey " in
     let resfalse = get_i "    If false: throw to monkey " in
     lift3 (fun test yes no ->
-      fun v -> if v mod test = 0 then yes else no
+        fun v -> if v mod test = 0 then yes else no
       ) test restrue resfalse
 
   let monkey =

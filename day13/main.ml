@@ -18,9 +18,9 @@ module Parsing = struct
   let pack l = Packet l
   let packet =
     fix (fun p ->
-      let p = enclosed '[' (sep_by (char ',') p) ']' in
-      (data <$> integer) <|> (pack <$> p)
-    ) <* end_of_line
+        let p = enclosed '[' (sep_by (char ',') p) ']' in
+        (data <$> integer) <|> (pack <$> p)
+      ) <* end_of_line
   let input = sep_by end_of_line (both packet packet)
 
 end

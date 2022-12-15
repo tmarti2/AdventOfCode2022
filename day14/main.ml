@@ -27,10 +27,10 @@ module Solving = struct
   let dims paths =
     List.fold paths ~init:(0,0) ~f:(fun init p ->
         List.fold p ~init ~f:(fun (maxx, maxy) (x,y) ->
-          max x maxx,
-          max y maxy
-        )
-    )
+            max x maxx,
+            max y maxy
+          )
+      )
 
   let in_range (maxx,maxy) (x,y) =
     x >= 0 && x < maxx && y >= 0 && y < maxy
