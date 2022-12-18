@@ -32,6 +32,16 @@ module Solving = struct
 
   let set map cell (x,y,z) = map.(x).(y).(z) <- cell
 
+  let in_range (mx,my,mz) (x,y,z) =
+    x >= 0 && x < mx && y >= 0 && y < my && z >= 0 && z < mz
+
+  let is_cell map cell (x,y,z) = Poly.(map.(x).(y).(z) = cell)
+
+  let get_adjacents =
+    let d = [(1,0,0);(-1,0,0);(0,1,0);(0,-1,0);(0,0,1);(0,0,-1)] in
+    let sum (x,y,z) (x',y',z') = x+x', y+y', z+z' in
+    fun p -> List.map d ~f:(sum p)
+
   let init_map (dimx,dimy,dimz) lava =
     let map =
       Array.init dimx ~f:(fun _ -> Array.make_matrix ~dimx:dimy ~dimy:dimz Air)
@@ -39,47 +49,34 @@ module Solving = struct
     List.iter lava ~f:(set map Lava);
     map
 
-  let in_range (mx,my,mz) (x,y,z) =
-    x >= 0 && x < mx && y >= 0 && y < my && z >= 0 && z < mz
+  let count_surface map cell p =
+    get_adjacents p |> List.count ~f:(is_cell map cell)
 
-  let is_air map (x,y,z) = Poly.(map.(x).(y).(z) = Air)
+  let fill_cell queue map dims p =
+    if in_range dims p && is_cell map Air p then
+      (Queue.enqueue queue p; set map Water p)
 
-  let get_adjacents =
-    let d = [(1,0,0);(-1,0,0);(0,1,0);(0,-1,0);(0,0,1);(0,0,-1)] in
-    let sum (x,y,z) (x',y',z') = x+x', y+y', z+z' in
-    fun p -> List.map d ~f:(sum p)
-
-  let count_air map p =
-    get_adjacents p |> List.count ~f:(is_air map)
-
-  let fill map dims =
+  let fill_map map dims =
     set map Water (0,0,0);
     let todo = Queue.singleton (0,0,0) in
     let rec aux () =
       match Queue.dequeue todo with
       | None -> ()
       | Some current ->
-        List.iter (get_adjacents current) ~f:(fun p ->
-            if in_range dims p && is_air map p then
-              (Queue.enqueue todo p; set map Water p)
-          );
-        aux ()
+        aux @@ List.iter (get_adjacents current) ~f:(fill_cell todo map dims)
     in
     aux ()
 
   let part1 (input : input) : output =
     let dims = find_dims input in
     let map = init_map dims input in
-    List.sum (module Int) input ~f:(count_air map)
+    List.sum (module Int) input ~f:(count_surface map Air)
 
   let part2 (input : input) : output =
     let dims = find_dims input in
     let map = init_map dims input in
-    let before = List.sum (module Int) input ~f:(count_air map) in
-    fill map dims;
-    let after = List.sum (module Int) input ~f:(count_air map) in
-    before - after
-
+    fill_map map dims;
+    List.sum (module Int) input ~f:(count_surface map Water)
 end
 
 module Today = MakeDay(Types)(Parsing)(Solving)
