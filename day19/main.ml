@@ -1,7 +1,6 @@
 open Aoclib
 
 module Types = struct
-  open Base
 
   type blueprint = {
     pore : int;
@@ -152,10 +151,8 @@ module Solving = struct
     aux 0
 
   let part1 (input : input) : output =
-    let quality max i bp =
-      n_step max bp |> ( * ) (i + 1)
-    in
-    List.mapi input ~f:(quality 24)
+    List.map input ~f:(n_step 24)
+    |> List.mapi ~f:(fun i n -> (i + 1) * n)
     |> List.sum (module Int) ~f:Fn.id
 
   let part2 (input : input) : output =
