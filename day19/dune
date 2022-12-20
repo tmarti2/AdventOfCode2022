@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (preprocess (pps ppx_show ppx_sexp_conv))
+ (libraries aoclib angstrom ppx_show.runtime ppx_sexp_conv)
+)
