@@ -1,7 +1,8 @@
 open Aoclib
 
 module Types = struct
-  type cell = Empty | Elf [@@deriving show {with_path = false}]
+  type cell = Empty | Elf | Next of int
+  [@@deriving show {with_path = false}]
 
   type input = cell list list [@@deriving show]
 
@@ -30,13 +31,12 @@ module Solving = struct
 
   let find_inner map (_,_,mx,my) =
     Array.foldi map ~init:(mx,my, 0, 0) ~f:(fun y init row ->
-      Array.foldi row ~init ~f:(fun x (minx,miny,maxx,maxy) c ->
-            if Poly.(c = Elf) then
-              (min minx x, min miny y, max maxx x, max maxy y)
-            else
-              (minx,miny,maxx,maxy)
-        )
-    )
+        Array.foldi row ~init ~f:(fun x (minx,miny,maxx,maxy) c ->
+            match c with
+            | Elf -> (min minx x, min miny y, max maxx x, max maxy y)
+            | _ ->  (minx,miny,maxx,maxy)
+          )
+      )
 
   let create_map data (_,_,mx,my) =
     let lxoffset = 30 in (* ugly af *)
@@ -45,21 +45,19 @@ module Solving = struct
     let dyoffset = 60 in
     let map = Array.make_matrix ~dimx:(my+uyoffset+dyoffset) ~dimy:(mx+lxoffset+rxoffset) Empty in
     List.iteri data ~f:(fun y row ->
-      List.iteri row ~f:(fun x c ->
+        List.iteri row ~f:(fun x c ->
             set map c (x+lxoffset,y+uyoffset)
-        )
-    );
+          )
+      );
     map, (0,0,mx+lxoffset+rxoffset,my+uyoffset+dyoffset)
 
+  let add (x,y) (x',y') = x + x', y + y'
+
   let get_offset = function
-    | N -> (0,-1)
-    | S -> (0,1)
-    | W -> (-1,0)
-    | E -> (1,0)
-    | NE -> (1,-1)
-    | NW -> (-1,-1)
-    | SE -> (1,1)
-    | SW -> (-1,1)
+    | N -> (0,-1) | S -> (0,1)
+    | W -> (-1,0) | E -> (1,0)
+    | NE -> (1,-1)| NW -> (-1,-1)
+    | SE -> (1,1) | SW -> (-1,1)
 
   let get_corners = function
     | N -> List.map [N;NE;NW] ~f:get_offset
@@ -70,19 +68,22 @@ module Solving = struct
 
   let find_elfs map =
     Array.foldi map ~init:[] ~f:(fun y init row ->
-      Array.foldi row ~init ~f:(fun x acc c ->
-            if Poly.(c = Elf) then (x,y)::acc else acc
+        Array.foldi row ~init ~f:(fun x acc c ->
+            if Poly.(c = Elf) then (x,y) :: acc else acc
+          )
+      )
+
+  let can_move =
+    let moves_c = Array.map moves ~f:get_corners in
+    fun map p i ->
+      let nexts_pos = List.map moves_c.(i) ~f:(add p) in
+      List.for_all nexts_pos ~f:(fun (x,y) ->
+          match map.(y).(x) with
+          | Empty | Next _ -> true
+          | Elf -> false
         )
-    )
 
-  let moves_c = Array.map moves ~f:get_corners
-
-  let can_move map _ (x,y) i =
-    let nexts_pos = List.map moves_c.(i) ~f:(fun (dx,dy) -> x+dx, y+dy) in
-    List.for_all nexts_pos ~f:(fun (x,y) -> Poly.(map.(y).(x) = Empty))
-
-  let get_coord (x,y) dir =
-    let x',y' = get_offset dir in x + x', y + y'
+  let get_coord p dir = get_offset dir |> add p
 
   let has_neightboors map elf =
     List.exists [N;S;W;E;NW;NE;SE;SW] ~f:(fun d ->
@@ -90,38 +91,50 @@ module Solving = struct
         Poly.(map.(y).(x) = Elf)
       )
 
-  let move map dims i elf =
+  let update map (x,y) =
+    map.(y).(x) <-
+      match map.(y).(x) with
+      | Empty -> Next 1
+      | Next i -> Next (i + 1)
+      | Elf -> assert false
+
+  let move map i elf =
     let rec aux n =
       if n = 4 || not @@ has_neightboors map elf then None
       else
         let i = ((i + n) % 4) in
-        match can_move map dims elf i, get_coord elf moves.(i) with
+        match can_move map elf i, get_coord elf moves.(i) with
         | false, _ -> aux (n + 1)
-        | true, next -> Some next
+        | true, next ->
+          update map next;
+          Some next
     in
     aux 0
 
-  let round map dims elfs i =
-    let next_elfs = List.map elfs ~f:(move map dims i) in
-    let next_elfs =
-      List.map2_exn elfs next_elfs ~f:(fun old_pos new_pos ->
-          set map Empty old_pos;
-          match new_pos with
-          | None -> old_pos
-          | Some new_pos' ->
-            if (List.count next_elfs ~f:Poly.((=) new_pos)) = 1 then
-              new_pos'
-            else
-              old_pos
-        ) in
-    List.iter next_elfs ~f:(set map Elf);
-    next_elfs, (i + 1) % 4
+  let round map elfs i =
+    List.map elfs ~f:(move map i)
+    |> List.map2_exn elfs ~f:(fun old_pos new_pos ->
+        match new_pos with
+        | None -> old_pos
+        | Some (x,y) ->
+          match map.(y).(x) with
+          | Empty -> old_pos
+          | Elf -> assert false
+          | Next i when i = 1 ->
+            set map Empty old_pos;
+            set map Elf (x,y);
+            (x,y)
+          | Next _ ->
+            set map Empty (x,y);
+            old_pos
+      )
+  , (i + 1) % 4
 
-  let rounds ?stop (map,dims,elfs) =
+  let rounds ?stop (map, _, elfs) =
     let rec aux i elfs n =
       if Option.is_some stop && Option.value_exn stop < n then n
       else begin
-        let nelfs, ni = round map dims elfs i in
+        let nelfs, ni = round map elfs i in
         if Poly.(nelfs = elfs) then n
         else aux ni nelfs (n + 1)
       end
@@ -129,13 +142,12 @@ module Solving = struct
     aux 0 elfs 1
 
   let count_empty map (minx,miny,maxx,maxy) =
-    let in_range (x,y) =
-      x >= minx && x < maxx && y >= miny && y < maxy in
+    let in_range (x,y) = x >= minx && x <= maxx && y >= miny && y <= maxy in
     Array.foldi map ~init:0 ~f:(fun y init row ->
-      Array.foldi row ~init ~f:(fun x acc c ->
-        if in_range (x,y) && Poly.(c = Empty) then acc + 1 else acc
+        Array.foldi row ~init ~f:(fun x acc c ->
+            if in_range (x,y) && Poly.(c = Empty) then acc + 1 else acc
+          )
       )
-    )
 
   let get_data input =
     let dims = find_dims input in
