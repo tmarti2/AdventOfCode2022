@@ -26,14 +26,14 @@ end
 module Solving = struct
   open Base
 
+  let symb_to_string = function
+    | Zero -> "0"
+    | One -> "1"
+    | Two -> "2"
+    | Minus -> "-"
+    | Equal -> "="
+
   let snafu_to_string symbs =
-    let symb_to_string = function
-      | Zero -> "0"
-      | One -> "1"
-      | Two -> "2"
-      | Minus -> "-"
-      | Equal -> "="
-    in
     List.map symbs ~f:symb_to_string |> String.concat
 
   let to_dec = function
@@ -44,29 +44,30 @@ module Solving = struct
     | Equal -> -2
 
   let snafu_to_dec symbs =
-    List.rev symbs
-    |> List.foldi ~init:0 ~f:(fun i acc symb ->
-        acc + (5 ** i) * (to_dec symb)
+    List.fold symbs ~init:0 ~f:(fun acc symb ->
+        5 * acc + (to_dec symb)
       )
 
+  let rest_remainder = function
+    | 0 -> Zero, 0
+    | 1 -> One, 0
+    | 2 -> Two, 0
+    | 3 -> Minus, 1
+    | 4 -> Equal, 1
+    | _ -> assert false
+
   let dec_to_snafu n =
-    let rec from_dec acc = function
-      | -2 -> Equal :: acc
-      | -1 -> Minus :: acc
-      | 0 -> Zero :: acc
-      | 1 -> One :: acc
-      | 2 -> Two :: acc
-      | n -> to_snafu acc n
-    and to_snafu acc n =
-      let q, r = n / 5, n % 5 in
-      let r, c = if r <= 2 then r, 0 else (r - 5), 1 in
-      from_dec (from_dec acc r) (c + q)
+    let rec to_snafu acc = function
+      | 0 -> acc
+      | n ->
+        let symb, r = rest_remainder (n % 5) in
+        to_snafu (symb :: acc) (n / 5 + r)
     in
-    from_dec [] n
+    if n = 0 then [Zero] else to_snafu [] n
 
   let part1 (input : input) : output =
-  List.sum (module Int) input ~f:snafu_to_dec
-  |> dec_to_snafu |> snafu_to_string
+    List.sum (module Int) input ~f:snafu_to_dec
+    |> dec_to_snafu |> snafu_to_string
 
   let part2 (_input : input) : output = "0"
 end
